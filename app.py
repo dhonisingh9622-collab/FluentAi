@@ -1,3 +1,17 @@
+import sys
+import types
+
+# --- FIX: TRICK PYTHON 3.13 TO IGNORE MISSING AUDIO FILE ---
+if sys.version_info >= (3, 13):
+    # Create a fake 'aifc' module so SpeechRecognition doesn't crash
+    m = types.ModuleType('aifc')
+    m.open = lambda *args, **kwargs: None  # Fake the 'open' function
+    m.Error = Exception
+    sys.modules['aifc'] = m
+# -----------------------------------------------------------
+
+import streamlit as st
+# ... rest of your code ...
 """
 FluentAI - Interactive English Language Learning Web App
 ========================================================
