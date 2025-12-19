@@ -34,8 +34,8 @@ import os
 
 # --- 2. CONFIG ---
 st.set_page_config(
-    page_title="FLUENT.AI 3000 (Daily Edition)",
-    page_icon="📅",
+    page_title="FLUENT.AI 3000",
+    page_icon="💎",
     layout="wide"
 )
 
@@ -57,12 +57,11 @@ st.markdown("""
         padding: 20px;
         margin-bottom: 20px;
         text-align: center;
-        transition: transform 0.3s ease;
     }
-    .glass-card:hover { transform: translateY(-5px); border-color: #00d2ff; }
+    .glass-card:hover { border-color: #00d2ff; }
     .bot-bubble { background: rgba(0, 210, 255, 0.1); border: 1px solid #00d2ff; padding: 15px; border-radius: 0 20px 20px 20px; margin-bottom: 10px; width: fit-content; max-width: 80%; }
     .user-bubble { background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%); color: #000; font-weight: bold; padding: 15px; border-radius: 20px 0 20px 20px; margin-bottom: 10px; margin-left: auto; width: fit-content; max-width: 80%; }
-    .visual-icon { font-size: 80px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
+    .visual-icon { font-size: 80px; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -76,7 +75,6 @@ with st.sidebar:
     mode = st.radio("Navigation", ["🗣️ CHAT PRACTICE", "📚 DAILY VOCAB", "👁️ VISUAL LEARNING"], label_visibility="collapsed")
     st.markdown("---")
     st.info(f"📅 Date: {datetime.now().strftime('%B %d, %Y')}")
-    st.info("Content updates automatically every 24h.")
 
 def speak_text(text):
     if text:
@@ -87,8 +85,26 @@ def speak_text(text):
                 st.audio(fp.name, format="audio/mp3")
         except: pass
 
-# --- DAILY ROTATION LOGIC ---
-# We use the current date as a 'seed' so the random choice is the same for everyone on that day
+# --- SMART MODEL SELECTOR ---
+def get_gemini_response(history_messages, user_text):
+    # List of models to try in order (Best -> Backup -> Legacy)
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            chat = model.start_chat(history=[])
+            # Simple prompt construction
+            response = chat.send_message(f"You are an English tutor. Correct grammar then reply: {user_text}")
+            return response.text # If successful, return and exit
+        except Exception as e:
+            last_error = e
+            continue # Try next model
+            
+    raise last_error # If all fail, crash nicely
+
+# --- SEED FOR DAILY CONTENT ---
 today_seed = int(datetime.now().strftime("%Y%m%d"))
 random.seed(today_seed)
 
@@ -123,20 +139,16 @@ if mode == "🗣️ CHAT PRACTICE":
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and api_key:
         with st.spinner("💎 PROCESSING..."):
             try:
-                # Uses the NEWEST Gemini model to fix your 404 error
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                chat = model.start_chat(history=[])
-                response = chat.send_message(f"Correct any grammar mistakes, then reply naturally to: {st.session_state.messages[-1]['content']}")
-                st.session_state.messages.append({"role": "model", "content": response.text})
+                # CALL THE SMART FUNCTION
+                ai_msg = get_gemini_response(st.session_state.messages, st.session_state.messages[-1]['content'])
+                st.session_state.messages.append({"role": "model", "content": ai_msg})
                 st.rerun()
-            except Exception as e: st.error(f"ERROR: {e}")
+            except Exception as e: st.error(f"ALL MODELS FAILED: {e}")
 
 # --- MODE B: DAILY VOCAB ---
 elif mode == "📚 DAILY VOCAB":
     st.markdown(f"<h1>📚 VOCAB FOR {datetime.now().strftime('%B %d')}</h1>", unsafe_allow_html=True)
-    st.markdown("Words change automatically every 24 hours.", unsafe_allow_html=True)
     
-    # MASTER DATABASE (The app picks 4 random ones from here each day)
     full_vocab_db = [
         {"word": "Articulate", "meaning": "To express an idea clearly.", "ex": "She can articulate complex ideas."},
         {"word": "Mitigate", "meaning": "To make less severe.", "ex": "We must mitigate the risks."},
@@ -155,75 +167,31 @@ elif mode == "📚 DAILY VOCAB":
         {"word": "Plausible", "meaning": "Seeming reasonable or probable.", "ex": "A plausible explanation."}
     ]
     
-    # Pick 4 random words based on today's seed
     todays_words = random.sample(full_vocab_db, 4)
-    
     col1, col2 = st.columns(2)
     for i, w in enumerate(todays_words):
         with col1 if i % 2 == 0 else col2:
-            st.markdown(f"""
-            <div class="glass-card">
-                <h2 style="color:#00d2ff; margin:0">{w['word']}</h2>
-                <p><strong>Meaning:</strong> {w['meaning']}</p>
-                <p style="font-style:italic; color:#aaa;">"{w['ex']}"</p>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"🔊 Pronounce: {w['word']}", key=w['word']):
-                speak_text(w['word'])
+            st.markdown(f"""<div class="glass-card"><h2 style="color:#00d2ff; margin:0">{w['word']}</h2><p><strong>Meaning:</strong> {w['meaning']}</p><p style="font-style:italic; color:#aaa;">"{w['ex']}"</p></div>""", unsafe_allow_html=True)
+            if st.button(f"🔊 Pronounce: {w['word']}", key=w['word']): speak_text(w['word'])
 
 # --- MODE C: VISUAL LEARNING ---
 elif mode == "👁️ VISUAL LEARNING":
     st.markdown("<h1>👁️ VISUAL DATABASE</h1>", unsafe_allow_html=True)
     category = st.selectbox("SELECT DATASET:", ["🍎 Fruits & Veggies", "💻 Tech & Tools", "🪐 Space & Planets", "🐶 Animals"])
     
-    # MASTER VISUAL DB
     full_visual_db = {
-        "🍎 Fruits & Veggies": [
-            {"name": "Avocado", "icon": "🥑"}, {"name": "Broccoli", "icon": "🥦"},
-            {"name": "Strawberry", "icon": "🍓"}, {"name": "Pineapple", "icon": "🍍"},
-            {"name": "Carrot", "icon": "🥕"}, {"name": "Eggplant", "icon": "🍆"},
-            {"name": "Corn", "icon": "🌽"}, {"name": "Chili", "icon": "🌶️"},
-            {"name": "Mushroom", "icon": "🍄"}, {"name": "Cherries", "icon": "🍒"}
-        ],
-        "💻 Tech & Tools": [
-            {"name": "Microchip", "icon": "💾"}, {"name": "Satellite", "icon": "📡"},
-            {"name": "Smartphone", "icon": "📱"}, {"name": "Telescope", "icon": "🔭"},
-            {"name": "Microscope", "icon": "🔬"}, {"name": "Robot", "icon": "🤖"},
-            {"name": "Battery", "icon": "🔋"}, {"name": "Joystick", "icon": "🕹️"},
-            {"name": "Printer", "icon": "🖨️"}, {"name": "Camera", "icon": "📷"}
-        ],
-        "🪐 Space & Planets": [
-            {"name": "Saturn", "icon": "🪐"}, {"name": "Rocket", "icon": "🚀"},
-            {"name": "Alien", "icon": "👽"}, {"name": "Meteor", "icon": "☄️"},
-            {"name": "Moon", "icon": "🌙"}, {"name": "Star", "icon": "⭐"},
-            {"name": "Sun", "icon": "☀️"}, {"name": "Earth", "icon": "🌍"},
-            {"name": "Black Hole", "icon": "⚫"}, {"name": "Comet", "icon": "💫"}
-        ],
-        "🐶 Animals": [
-            {"name": "Fox", "icon": "🦊"}, {"name": "Whale", "icon": "🐋"},
-            {"name": "Owl", "icon": "🦉"}, {"name": "Tiger", "icon": "🐯"},
-            {"name": "Butterfly", "icon": "🦋"}, {"name": "Octopus", "icon": "🐙"},
-            {"name": "Sloth", "icon": "🦥"}, {"name": "Flamingo", "icon": "🦩"},
-            {"name": "Peacock", "icon": "🦚"}, {"name": "Hedgehog", "icon": "🦔"}
-        ]
+        "🍎 Fruits & Veggies": [{"name": "Avocado", "icon": "🥑"}, {"name": "Broccoli", "icon": "🥦"}, {"name": "Strawberry", "icon": "🍓"}, {"name": "Pineapple", "icon": "🍍"}, {"name": "Carrot", "icon": "🥕"}, {"name": "Eggplant", "icon": "🍆"}, {"name": "Corn", "icon": "🌽"}, {"name": "Chili", "icon": "🌶️"}],
+        "💻 Tech & Tools": [{"name": "Microchip", "icon": "💾"}, {"name": "Satellite", "icon": "📡"}, {"name": "Smartphone", "icon": "📱"}, {"name": "Telescope", "icon": "🔭"}, {"name": "Microscope", "icon": "🔬"}, {"name": "Robot", "icon": "🤖"}, {"name": "Battery", "icon": "🔋"}, {"name": "Joystick", "icon": "🕹️"}],
+        "🪐 Space & Planets": [{"name": "Saturn", "icon": "🪐"}, {"name": "Rocket", "icon": "🚀"}, {"name": "Alien", "icon": "👽"}, {"name": "Meteor", "icon": "☄️"}, {"name": "Moon", "icon": "🌙"}, {"name": "Star", "icon": "⭐"}, {"name": "Sun", "icon": "☀️"}, {"name": "Earth", "icon": "🌍"}],
+        "🐶 Animals": [{"name": "Fox", "icon": "🦊"}, {"name": "Whale", "icon": "🐋"}, {"name": "Owl", "icon": "🦉"}, {"name": "Tiger", "icon": "🐯"}, {"name": "Butterfly", "icon": "🦋"}, {"name": "Octopus", "icon": "🐙"}, {"name": "Sloth", "icon": "🦥"}, {"name": "Flamingo", "icon": "🦩"}]
     }
     
-    st.markdown("---")
-    
-    # Pick 6 random items from the category based on today's seed
     category_items = full_visual_db[category]
-    # Ensure we don't crash if list is small, sample min(len, 6)
     todays_items = random.sample(category_items, min(len(category_items), 6))
     
     c1, c2, c3 = st.columns(3)
     for i, item in enumerate(todays_items):
         col = [c1, c2, c3][i % 3]
         with col:
-            st.markdown(f"""
-            <div class="glass-card">
-                <div class="visual-icon">{item['icon']}</div>
-                <h3 style="margin:0">{item['name']}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"🔊 Say {item['name']}", key=f"vis_{item['name']}"):
-                speak_text(item['name'])
+            st.markdown(f"""<div class="glass-card"><div class="visual-icon">{item['icon']}</div><h3 style="margin:0">{item['name']}</h3></div>""", unsafe_allow_html=True)
+            if st.button(f"🔊 Say {item['name']}", key=f"vis_{item['name']}"): speak_text(item['name'])
