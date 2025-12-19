@@ -2,10 +2,10 @@ import sys
 import types
 import streamlit as st
 import random
+from datetime import datetime
 
-# --- 1. STABILITY PATCHES (Essential for Cloud) ---
+# --- 1. STABILITY PATCHES ---
 if sys.version_info >= (3, 12):
-    # Mock 'distutils'
     if 'distutils' not in sys.modules:
         m_dist = types.ModuleType('distutils')
         m_dist.version = types.ModuleType('version')
@@ -16,7 +16,6 @@ if sys.version_info >= (3, 12):
         sys.modules['distutils'] = m_dist
         sys.modules['distutils.version'] = m_dist.version
 
-    # Mock 'aifc' & 'audioop'
     m_aifc = types.ModuleType('aifc')
     m_aifc.open = lambda *args, **kwargs: None
     m_aifc.Error = Exception
@@ -35,8 +34,8 @@ import os
 
 # --- 2. CONFIG ---
 st.set_page_config(
-    page_title="FLUENT.AI 3000",
-    page_icon="💎",
+    page_title="FLUENT.AI 3000 (Daily Edition)",
+    page_icon="📅",
     layout="wide"
 )
 
@@ -50,8 +49,6 @@ st.markdown("""
         color: white;
         font-family: 'Rajdhani', sans-serif;
     }
-    
-    /* CARDS */
     .glass-card {
         background: rgba(255, 255, 255, 0.05);
         backdrop-filter: blur(10px);
@@ -62,29 +59,10 @@ st.markdown("""
         text-align: center;
         transition: transform 0.3s ease;
     }
-    .glass-card:hover {
-        transform: translateY(-5px);
-        border-color: #00d2ff;
-    }
-    
-    /* BUBBLES */
-    .bot-bubble {
-        background: rgba(0, 210, 255, 0.1);
-        border: 1px solid #00d2ff;
-        padding: 15px; border-radius: 0 20px 20px 20px; margin-bottom: 10px; width: fit-content; max-width: 80%;
-    }
-    .user-bubble {
-        background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
-        color: #000; font-weight: bold;
-        padding: 15px; border-radius: 20px 0 20px 20px; margin-bottom: 10px; margin-left: auto; width: fit-content; max-width: 80%;
-    }
-    
-    /* VISUAL ICONS */
-    .visual-icon {
-        font-size: 80px;
-        margin-bottom: 10px;
-        filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
-    }
+    .glass-card:hover { transform: translateY(-5px); border-color: #00d2ff; }
+    .bot-bubble { background: rgba(0, 210, 255, 0.1); border: 1px solid #00d2ff; padding: 15px; border-radius: 0 20px 20px 20px; margin-bottom: 10px; width: fit-content; max-width: 80%; }
+    .user-bubble { background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%); color: #000; font-weight: bold; padding: 15px; border-radius: 20px 0 20px 20px; margin-bottom: 10px; margin-left: auto; width: fit-content; max-width: 80%; }
+    .visual-icon { font-size: 80px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -95,9 +73,10 @@ with st.sidebar:
     if api_key: genai.configure(api_key=api_key)
     
     st.markdown("### 💠 MODULE SELECTOR")
-    mode = st.radio("Navigation", ["🗣️ CHAT PRACTICE", "📚 PRACTICAL VOCAB", "👁️ VISUAL LEARNING"], label_visibility="collapsed")
+    mode = st.radio("Navigation", ["🗣️ CHAT PRACTICE", "📚 DAILY VOCAB", "👁️ VISUAL LEARNING"], label_visibility="collapsed")
     st.markdown("---")
-    st.info("Ensure you use a Free Gemini Key.")
+    st.info(f"📅 Date: {datetime.now().strftime('%B %d, %Y')}")
+    st.info("Content updates automatically every 24h.")
 
 def speak_text(text):
     if text:
@@ -107,6 +86,11 @@ def speak_text(text):
                 tts.save(fp.name)
                 st.audio(fp.name, format="audio/mp3")
         except: pass
+
+# --- DAILY ROTATION LOGIC ---
+# We use the current date as a 'seed' so the random choice is the same for everyone on that day
+today_seed = int(datetime.now().strftime("%Y%m%d"))
+random.seed(today_seed)
 
 # --- MODE A: CHAT ---
 if mode == "🗣️ CHAT PRACTICE":
@@ -118,8 +102,6 @@ if mode == "🗣️ CHAT PRACTICE":
         st.markdown(f'<div class="{style}">{msg["content"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    
-    # Voice Button
     if st.button("🎙️ ACTIVATE VOX SENSOR"):
         st.info("⚠️ Listening...")
         try:
@@ -131,7 +113,6 @@ if mode == "🗣️ CHAT PRACTICE":
                 st.rerun()
         except: st.error("❌ SENSOR OFFLINE. TYPE BELOW.")
 
-    # Text Input
     user_input = st.chat_input("Transmit data packet...")
     if user_input:
         if not api_key: st.warning("⚠️ ENTER GOOGLE API KEY IN SIDEBAR")
@@ -142,30 +123,43 @@ if mode == "🗣️ CHAT PRACTICE":
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and api_key:
         with st.spinner("💎 PROCESSING..."):
             try:
-                model = genai.GenerativeModel('gemini-pro')
+                # Uses the NEWEST Gemini model to fix your 404 error
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 chat = model.start_chat(history=[])
                 response = chat.send_message(f"Correct any grammar mistakes, then reply naturally to: {st.session_state.messages[-1]['content']}")
                 st.session_state.messages.append({"role": "model", "content": response.text})
                 st.rerun()
             except Exception as e: st.error(f"ERROR: {e}")
 
-# --- MODE B: PRACTICAL VOCAB ---
-elif mode == "📚 PRACTICAL VOCAB":
-    st.markdown("<h1>📚 DAILY POWER WORDS</h1>", unsafe_allow_html=True)
-    st.markdown("Use these words to sound more professional and articulate in daily life.", unsafe_allow_html=True)
+# --- MODE B: DAILY VOCAB ---
+elif mode == "📚 DAILY VOCAB":
+    st.markdown(f"<h1>📚 VOCAB FOR {datetime.now().strftime('%B %d')}</h1>", unsafe_allow_html=True)
+    st.markdown("Words change automatically every 24 hours.", unsafe_allow_html=True)
     
-    # Practical, usable words
-    words = [
-        {"word": "Articulate", "meaning": "To express an idea clearly and effectively.", "ex": "She can articulate complex ideas very well."},
-        {"word": "Mitigate", "meaning": "To make something less severe or painful.", "ex": "We need to mitigate the risks of this project."},
-        {"word": "Lucrative", "meaning": "Producing a great deal of profit.", "ex": "He has a lucrative business selling software."},
-        {"word": "Pragmatic", "meaning": "Dealing with things realistically.", "ex": "We need a pragmatic solution, not a theory."},
-        {"word": "Collaborate", "meaning": "To work jointly on an activity to produce something.", "ex": "The teams collaborated to finish the task."},
-        {"word": "Resilient", "meaning": "Able to withstand or recover quickly from difficulties.", "ex": "The economy remains resilient despite the crash."}
+    # MASTER DATABASE (The app picks 4 random ones from here each day)
+    full_vocab_db = [
+        {"word": "Articulate", "meaning": "To express an idea clearly.", "ex": "She can articulate complex ideas."},
+        {"word": "Mitigate", "meaning": "To make less severe.", "ex": "We must mitigate the risks."},
+        {"word": "Lucrative", "meaning": "Producing profit.", "ex": "A lucrative business."},
+        {"word": "Pragmatic", "meaning": "Dealing with things realistically.", "ex": "A pragmatic approach."},
+        {"word": "Collaborate", "meaning": "To work together.", "ex": "They collaborated on the project."},
+        {"word": "Resilient", "meaning": "Able to recover quickly.", "ex": "She is resilient."},
+        {"word": "Ambiguous", "meaning": "Open to more than one interpretation.", "ex": "The ending was ambiguous."},
+        {"word": "Candid", "meaning": "Truthful and straightforward.", "ex": "A candid interview."},
+        {"word": "Diligent", "meaning": "Having or showing care in one's work.", "ex": "A diligent student."},
+        {"word": "Empathy", "meaning": "The ability to understand feelings of others.", "ex": "He showed great empathy."},
+        {"word": "Innovative", "meaning": "Featuring new methods.", "ex": "An innovative design."},
+        {"word": "Meticulous", "meaning": "Showing great attention to detail.", "ex": "He was meticulous."},
+        {"word": "Nuance", "meaning": "A subtle difference in meaning.", "ex": "The nuances of the language."},
+        {"word": "Obsolete", "meaning": "No longer produced or used.", "ex": "The machine is obsolete."},
+        {"word": "Plausible", "meaning": "Seeming reasonable or probable.", "ex": "A plausible explanation."}
     ]
     
+    # Pick 4 random words based on today's seed
+    todays_words = random.sample(full_vocab_db, 4)
+    
     col1, col2 = st.columns(2)
-    for i, w in enumerate(words):
+    for i, w in enumerate(todays_words):
         with col1 if i % 2 == 0 else col2:
             st.markdown(f"""
             <div class="glass-card">
@@ -177,44 +171,52 @@ elif mode == "📚 PRACTICAL VOCAB":
             if st.button(f"🔊 Pronounce: {w['word']}", key=w['word']):
                 speak_text(w['word'])
 
-# --- MODE C: VISUAL LEARNING (NEW!) ---
+# --- MODE C: VISUAL LEARNING ---
 elif mode == "👁️ VISUAL LEARNING":
     st.markdown("<h1>👁️ VISUAL DATABASE</h1>", unsafe_allow_html=True)
-    
     category = st.selectbox("SELECT DATASET:", ["🍎 Fruits & Veggies", "💻 Tech & Tools", "🪐 Space & Planets", "🐶 Animals"])
     
-    # Visual Data Dictionary (Using High-Res Emojis as 'Images' for reliability)
-    data = {
+    # MASTER VISUAL DB
+    full_visual_db = {
         "🍎 Fruits & Veggies": [
             {"name": "Avocado", "icon": "🥑"}, {"name": "Broccoli", "icon": "🥦"},
             {"name": "Strawberry", "icon": "🍓"}, {"name": "Pineapple", "icon": "🍍"},
-            {"name": "Carrot", "icon": "🥕"}, {"name": "Eggplant", "icon": "🍆"}
+            {"name": "Carrot", "icon": "🥕"}, {"name": "Eggplant", "icon": "🍆"},
+            {"name": "Corn", "icon": "🌽"}, {"name": "Chili", "icon": "🌶️"},
+            {"name": "Mushroom", "icon": "🍄"}, {"name": "Cherries", "icon": "🍒"}
         ],
         "💻 Tech & Tools": [
             {"name": "Microchip", "icon": "💾"}, {"name": "Satellite", "icon": "📡"},
             {"name": "Smartphone", "icon": "📱"}, {"name": "Telescope", "icon": "🔭"},
-            {"name": "Microscope", "icon": "🔬"}, {"name": "Robot", "icon": "🤖"}
+            {"name": "Microscope", "icon": "🔬"}, {"name": "Robot", "icon": "🤖"},
+            {"name": "Battery", "icon": "🔋"}, {"name": "Joystick", "icon": "🕹️"},
+            {"name": "Printer", "icon": "🖨️"}, {"name": "Camera", "icon": "📷"}
         ],
         "🪐 Space & Planets": [
             {"name": "Saturn", "icon": "🪐"}, {"name": "Rocket", "icon": "🚀"},
             {"name": "Alien", "icon": "👽"}, {"name": "Meteor", "icon": "☄️"},
-            {"name": "Moon", "icon": "🌙"}, {"name": "Star", "icon": "⭐"}
+            {"name": "Moon", "icon": "🌙"}, {"name": "Star", "icon": "⭐"},
+            {"name": "Sun", "icon": "☀️"}, {"name": "Earth", "icon": "🌍"},
+            {"name": "Black Hole", "icon": "⚫"}, {"name": "Comet", "icon": "💫"}
         ],
         "🐶 Animals": [
             {"name": "Fox", "icon": "🦊"}, {"name": "Whale", "icon": "🐋"},
             {"name": "Owl", "icon": "🦉"}, {"name": "Tiger", "icon": "🐯"},
-            {"name": "Butterfly", "icon": "🦋"}, {"name": "Octopus", "icon": "🐙"}
+            {"name": "Butterfly", "icon": "🦋"}, {"name": "Octopus", "icon": "🐙"},
+            {"name": "Sloth", "icon": "🦥"}, {"name": "Flamingo", "icon": "🦩"},
+            {"name": "Peacock", "icon": "🦚"}, {"name": "Hedgehog", "icon": "🦔"}
         ]
     }
     
     st.markdown("---")
     
-    # Display Grid
-    c1, c2, c3 = st.columns(3)
-    current_items = data[category]
+    # Pick 6 random items from the category based on today's seed
+    category_items = full_visual_db[category]
+    # Ensure we don't crash if list is small, sample min(len, 6)
+    todays_items = random.sample(category_items, min(len(category_items), 6))
     
-    for i, item in enumerate(current_items):
-        # Distribute across 3 columns
+    c1, c2, c3 = st.columns(3)
+    for i, item in enumerate(todays_items):
         col = [c1, c2, c3][i % 3]
         with col:
             st.markdown(f"""
