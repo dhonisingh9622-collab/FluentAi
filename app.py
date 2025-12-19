@@ -4,7 +4,7 @@ import streamlit as st
 import random
 from datetime import datetime
 
-# --- 1. STABILITY PATCHES ---
+# --- 1. STABILITY PATCHES (Required for Python 3.12+) ---
 if sys.version_info >= (3, 12):
     if 'distutils' not in sys.modules:
         m_dist = types.ModuleType('distutils')
@@ -68,8 +68,13 @@ st.markdown("""
 # --- 4. LOGIC & DATA ---
 with st.sidebar:
     st.markdown("## 💎 SYSTEM CORE")
+    
+    # DEBUG: Show the library version to confirm the fix worked
+    st.caption(f"System Version: {genai.__version__}")
+    
     api_key = st.text_input("🔑 GOOGLE API KEY", type="password")
-    if api_key: genai.configure(api_key=api_key)
+    if api_key: 
+        genai.configure(api_key=api_key)
     
     st.markdown("### 💠 MODULE SELECTOR")
     mode = st.radio("Navigation", ["🗣️ CHAT PRACTICE", "📚 DAILY VOCAB", "👁️ VISUAL LEARNING"], label_visibility="collapsed")
@@ -84,25 +89,6 @@ def speak_text(text):
                 tts.save(fp.name)
                 st.audio(fp.name, format="audio/mp3")
         except: pass
-
-# --- SMART MODEL SELECTOR ---
-def get_gemini_response(history_messages, user_text):
-    # List of models to try in order (Best -> Backup -> Legacy)
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
-    
-    last_error = None
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            chat = model.start_chat(history=[])
-            # Simple prompt construction
-            response = chat.send_message(f"You are an English tutor. Correct grammar then reply: {user_text}")
-            return response.text # If successful, return and exit
-        except Exception as e:
-            last_error = e
-            continue # Try next model
-            
-    raise last_error # If all fail, crash nicely
 
 # --- SEED FOR DAILY CONTENT ---
 today_seed = int(datetime.now().strftime("%Y%m%d"))
@@ -139,11 +125,15 @@ if mode == "🗣️ CHAT PRACTICE":
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and api_key:
         with st.spinner("💎 PROCESSING..."):
             try:
-                # CALL THE SMART FUNCTION
-                ai_msg = get_gemini_response(st.session_state.messages, st.session_state.messages[-1]['content'])
-                st.session_state.messages.append({"role": "model", "content": ai_msg})
+                # Using the most stable current model
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                chat = model.start_chat(history=[])
+                response = chat.send_message(f"Correct any grammar mistakes, then reply naturally to: {st.session_state.messages[-1]['content']}")
+                st.session_state.messages.append({"role": "model", "content": response.text})
                 st.rerun()
-            except Exception as e: st.error(f"ALL MODELS FAILED: {e}")
+            except Exception as e: 
+                st.error(f"ERROR: {e}")
+                st.error("Tip: Check if your API Key is correct in the sidebar!")
 
 # --- MODE B: DAILY VOCAB ---
 elif mode == "📚 DAILY VOCAB":
