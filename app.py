@@ -1,8 +1,9 @@
 import sys
 import types
 import streamlit as st
+import random
 
-# --- 1. THE ULTIMATE STABILITY PATCH ---
+# --- 1. STABILITY PATCHES (Essential for Cloud) ---
 if sys.version_info >= (3, 12):
     # Mock 'distutils'
     if 'distutils' not in sys.modules:
@@ -15,18 +16,18 @@ if sys.version_info >= (3, 12):
         sys.modules['distutils'] = m_dist
         sys.modules['distutils.version'] = m_dist.version
 
-    # Mock 'aifc'
+    # Mock 'aifc' & 'audioop'
     m_aifc = types.ModuleType('aifc')
     m_aifc.open = lambda *args, **kwargs: None
     m_aifc.Error = Exception
     sys.modules['aifc'] = m_aifc
     
-    # Mock 'audioop'
     m_audioop = types.ModuleType('audioop')
     m_audioop.add = lambda *args: b''
     sys.modules['audioop'] = m_audioop
 
-import openai
+# --- IMPORTS ---
+import google.generativeai as genai
 import speech_recognition as sr
 from gtts import gTTS
 import tempfile
@@ -35,11 +36,11 @@ import os
 # --- 2. CONFIG ---
 st.set_page_config(
     page_title="FLUENT.AI 3000",
-    page_icon="🌌",
+    page_icon="💎",
     layout="wide"
 )
 
-# --- 3. FUTURE-UI CSS ---
+# --- 3. FUTURISTIC CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap');
@@ -50,7 +51,7 @@ st.markdown("""
         font-family: 'Rajdhani', sans-serif;
     }
     
-    /* GLASS CARDS */
+    /* CARDS */
     .glass-card {
         background: rgba(255, 255, 255, 0.05);
         backdrop-filter: blur(10px);
@@ -58,11 +59,18 @@ st.markdown("""
         border-radius: 15px;
         padding: 20px;
         margin-bottom: 20px;
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+    .glass-card:hover {
+        transform: translateY(-5px);
+        border-color: #00d2ff;
     }
     
     /* BUBBLES */
     .bot-bubble {
-        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+        background: rgba(0, 210, 255, 0.1);
+        border: 1px solid #00d2ff;
         padding: 15px; border-radius: 0 20px 20px 20px; margin-bottom: 10px; width: fit-content; max-width: 80%;
     }
     .user-bubble {
@@ -70,15 +78,26 @@ st.markdown("""
         color: #000; font-weight: bold;
         padding: 15px; border-radius: 20px 0 20px 20px; margin-bottom: 10px; margin-left: auto; width: fit-content; max-width: 80%;
     }
+    
+    /* VISUAL ICONS */
+    .visual-icon {
+        font-size: 80px;
+        margin-bottom: 10px;
+        filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. LOGIC ---
+# --- 4. LOGIC & DATA ---
 with st.sidebar:
-    st.markdown("## ⚙️ SYSTEM CORE")
-    api_key = st.text_input("🔑 API KEY", type="password")
-    if api_key: openai.api_key = api_key
-    mode = st.radio("MODE", ["🗣️ NEURAL CHAT", "🧠 MEMORY UPLINK"])
+    st.markdown("## 💎 SYSTEM CORE")
+    api_key = st.text_input("🔑 GOOGLE API KEY", type="password")
+    if api_key: genai.configure(api_key=api_key)
+    
+    st.markdown("### 💠 MODULE SELECTOR")
+    mode = st.radio("Navigation", ["🗣️ CHAT PRACTICE", "📚 PRACTICAL VOCAB", "👁️ VISUAL LEARNING"], label_visibility="collapsed")
+    st.markdown("---")
+    st.info("Ensure you use a Free Gemini Key.")
 
 def speak_text(text):
     if text:
@@ -89,70 +108,120 @@ def speak_text(text):
                 st.audio(fp.name, format="audio/mp3")
         except: pass
 
-if mode == "🗣️ NEURAL CHAT":
+# --- MODE A: CHAT ---
+if mode == "🗣️ CHAT PRACTICE":
     st.markdown("<h1>🗣️ NEURAL INTERFACE</h1>", unsafe_allow_html=True)
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "system", "content": "You are a futuristic AI tutor named Nexus."}]
+    if "messages" not in st.session_state: st.session_state.messages = []
 
-    # Chat History
     for msg in st.session_state.messages:
-        if msg["role"] != "system":
-            style = "user-bubble" if msg["role"] == "user" else "bot-bubble"
-            st.markdown(f'<div class="{style}">{msg["content"]}</div>', unsafe_allow_html=True)
+        style = "user-bubble" if msg["role"] == "user" else "bot-bubble"
+        st.markdown(f'<div class="{style}">{msg["content"]}</div>', unsafe_allow_html=True)
 
-    # --- FIXED: INPUT AREA ---
-    # We moved the button OUT of columns to prevent the crash
     st.markdown("---")
     
-    # Voice Button (Now safe)
-    if st.button("🎙️ ACTIVATE VOX SENSOR (Click to Speak)"):
+    # Voice Button
+    if st.button("🎙️ ACTIVATE VOX SENSOR"):
         st.info("⚠️ Listening...")
         try:
             r = sr.Recognizer()
             with sr.Microphone() as source:
                 audio = r.listen(source, timeout=3)
                 text = r.recognize_google(audio)
-                # Append directly to chat
                 st.session_state.messages.append({"role": "user", "content": text})
                 st.rerun()
-        except:
-            st.error("❌ SENSOR OFFLINE. USE TEXT BELOW.")
+        except: st.error("❌ SENSOR OFFLINE. TYPE BELOW.")
 
-    # Main Chat Input (Must be at root level)
+    # Text Input
     user_input = st.chat_input("Transmit data packet...")
-
     if user_input:
-        if not api_key:
-            st.warning("⚠️ ENTER API KEY IN SIDEBAR")
+        if not api_key: st.warning("⚠️ ENTER GOOGLE API KEY IN SIDEBAR")
         else:
             st.session_state.messages.append({"role": "user", "content": user_input})
             st.rerun()
 
-    # AI Response
-    if st.session_state.messages[-1]["role"] == "user" and api_key:
-        with st.spinner("⚡ PROCESSING..."):
+    if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and api_key:
+        with st.spinner("💎 PROCESSING..."):
             try:
-                response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=st.session_state.messages)
-                ai_msg = response.choices[0].message['content']
-                st.session_state.messages.append({"role": "assistant", "content": ai_msg})
+                model = genai.GenerativeModel('gemini-pro')
+                chat = model.start_chat(history=[])
+                response = chat.send_message(f"Correct any grammar mistakes, then reply naturally to: {st.session_state.messages[-1]['content']}")
+                st.session_state.messages.append({"role": "model", "content": response.text})
                 st.rerun()
-            except Exception as e:
-                st.error(f"ERROR: {e}")
+            except Exception as e: st.error(f"ERROR: {e}")
 
-elif mode == "🧠 MEMORY UPLINK":
-    st.markdown("<h1>🧠 KNOWLEDGE UPLINK</h1>", unsafe_allow_html=True)
+# --- MODE B: PRACTICAL VOCAB ---
+elif mode == "📚 PRACTICAL VOCAB":
+    st.markdown("<h1>📚 DAILY POWER WORDS</h1>", unsafe_allow_html=True)
+    st.markdown("Use these words to sound more professional and articulate in daily life.", unsafe_allow_html=True)
+    
+    # Practical, usable words
     words = [
-        {"word": "ETHEREAL", "meaning": "Extremely delicate and light."},
-        {"word": "NEBULOUS", "meaning": "Hazy, undefined, or vague."},
-        {"word": "LUMINESCENT", "meaning": "Emitting light not caused by heat."}
+        {"word": "Articulate", "meaning": "To express an idea clearly and effectively.", "ex": "She can articulate complex ideas very well."},
+        {"word": "Mitigate", "meaning": "To make something less severe or painful.", "ex": "We need to mitigate the risks of this project."},
+        {"word": "Lucrative", "meaning": "Producing a great deal of profit.", "ex": "He has a lucrative business selling software."},
+        {"word": "Pragmatic", "meaning": "Dealing with things realistically.", "ex": "We need a pragmatic solution, not a theory."},
+        {"word": "Collaborate", "meaning": "To work jointly on an activity to produce something.", "ex": "The teams collaborated to finish the task."},
+        {"word": "Resilient", "meaning": "Able to withstand or recover quickly from difficulties.", "ex": "The economy remains resilient despite the crash."}
     ]
-    for w in words:
-        st.markdown(f"""
-        <div class="glass-card">
-            <h2 style="color:#38ef7d; margin:0">{w['word']}</h2>
-            <p>{w['meaning']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button(f"🔊 ACTIVATE: {w['word']}", key=w['word']):
-            speak_text(w['word'])
+    
+    col1, col2 = st.columns(2)
+    for i, w in enumerate(words):
+        with col1 if i % 2 == 0 else col2:
+            st.markdown(f"""
+            <div class="glass-card">
+                <h2 style="color:#00d2ff; margin:0">{w['word']}</h2>
+                <p><strong>Meaning:</strong> {w['meaning']}</p>
+                <p style="font-style:italic; color:#aaa;">"{w['ex']}"</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"🔊 Pronounce: {w['word']}", key=w['word']):
+                speak_text(w['word'])
+
+# --- MODE C: VISUAL LEARNING (NEW!) ---
+elif mode == "👁️ VISUAL LEARNING":
+    st.markdown("<h1>👁️ VISUAL DATABASE</h1>", unsafe_allow_html=True)
+    
+    category = st.selectbox("SELECT DATASET:", ["🍎 Fruits & Veggies", "💻 Tech & Tools", "🪐 Space & Planets", "🐶 Animals"])
+    
+    # Visual Data Dictionary (Using High-Res Emojis as 'Images' for reliability)
+    data = {
+        "🍎 Fruits & Veggies": [
+            {"name": "Avocado", "icon": "🥑"}, {"name": "Broccoli", "icon": "🥦"},
+            {"name": "Strawberry", "icon": "🍓"}, {"name": "Pineapple", "icon": "🍍"},
+            {"name": "Carrot", "icon": "🥕"}, {"name": "Eggplant", "icon": "🍆"}
+        ],
+        "💻 Tech & Tools": [
+            {"name": "Microchip", "icon": "💾"}, {"name": "Satellite", "icon": "📡"},
+            {"name": "Smartphone", "icon": "📱"}, {"name": "Telescope", "icon": "🔭"},
+            {"name": "Microscope", "icon": "🔬"}, {"name": "Robot", "icon": "🤖"}
+        ],
+        "🪐 Space & Planets": [
+            {"name": "Saturn", "icon": "🪐"}, {"name": "Rocket", "icon": "🚀"},
+            {"name": "Alien", "icon": "👽"}, {"name": "Meteor", "icon": "☄️"},
+            {"name": "Moon", "icon": "🌙"}, {"name": "Star", "icon": "⭐"}
+        ],
+        "🐶 Animals": [
+            {"name": "Fox", "icon": "🦊"}, {"name": "Whale", "icon": "🐋"},
+            {"name": "Owl", "icon": "🦉"}, {"name": "Tiger", "icon": "🐯"},
+            {"name": "Butterfly", "icon": "🦋"}, {"name": "Octopus", "icon": "🐙"}
+        ]
+    }
+    
+    st.markdown("---")
+    
+    # Display Grid
+    c1, c2, c3 = st.columns(3)
+    current_items = data[category]
+    
+    for i, item in enumerate(current_items):
+        # Distribute across 3 columns
+        col = [c1, c2, c3][i % 3]
+        with col:
+            st.markdown(f"""
+            <div class="glass-card">
+                <div class="visual-icon">{item['icon']}</div>
+                <h3 style="margin:0">{item['name']}</h3>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"🔊 Say {item['name']}", key=f"vis_{item['name']}"):
+                speak_text(item['name'])
