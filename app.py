@@ -1,14 +1,23 @@
 import sys
 import types
 
-# --- FIX: TRICK PYTHON 3.13 TO IGNORE MISSING AUDIO FILE ---
+# --- FIX: TRICK PYTHON 3.13 TO IGNORE ALL MISSING AUDIO FILES ---
 if sys.version_info >= (3, 13):
-    # Create a fake 'aifc' module so SpeechRecognition doesn't crash
-    m = types.ModuleType('aifc')
-    m.open = lambda *args, **kwargs: None  # Fake the 'open' function
-    m.Error = Exception
-    sys.modules['aifc'] = m
-# -----------------------------------------------------------
+    # 1. Fake the missing 'aifc' module
+    m1 = types.ModuleType('aifc')
+    m1.open = lambda *args, **kwargs: None
+    m1.Error = Exception
+    sys.modules['aifc'] = m1
+
+    # 2. Fake the missing 'audioop' module (This fixes your new error!)
+    m2 = types.ModuleType('audioop')
+    m2.add = lambda *args: b''
+    m2.lin2lin = lambda *args: b''
+    m2.bias = lambda *args: b''
+    m2.mul = lambda *args: b''
+    m2.rms = lambda *args: 0
+    sys.modules['audioop'] = m2
+# ----------------------------------------------------------------
 
 import streamlit as st
 # ... rest of your code ...
